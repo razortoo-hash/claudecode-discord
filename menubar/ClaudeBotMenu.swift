@@ -1611,7 +1611,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func stopBot() {
-        runShell("launchctl unload '\(plistDst)' 2>/dev/null")
+        // 1) Unload launchd plist (prevents KeepAlive respawn)
+        // 2) SIGTERM, wait, then SIGKILL any remaining node processes
+        // 3) Remove stale .bot.lock so isRunning() returns false immediately
+        runShell("""
+            launchctl unload '\(plistDst)' 2>/dev/null
+            pkill -TERM -f 'node dist/index.js' 2>/dev/null
+            for i in 1 2 3 4 5; do
+                pgrep -f 'node dist/index.js' >/dev/null 2>&1 || break
+                sleep 0.3
+            done
+            pkill -KILL -f 'node dist/index.js' 2>/dev/null
+            rm -f '\(botDir)/.bot.lock'
+        """)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             self.updateStatus()
             self.buildMenu()
@@ -1620,7 +1632,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func restartBot() {
-        runShell("launchctl unload '\(plistDst)' 2>/dev/null")
+        runShell("""
+            launchctl unload '\(plistDst)' 2>/dev/null
+            pkill -TERM -f 'node dist/index.js' 2>/dev/null
+            for i in 1 2 3 4 5; do
+                pgrep -f 'node dist/index.js' >/dev/null 2>&1 || break
+                sleep 0.3
+            done
+            pkill -KILL -f 'node dist/index.js' 2>/dev/null
+            rm -f '\(botDir)/.bot.lock'
+        """)
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             self.generatePlist()
             self.runShell("launchctl load '\(self.plistDst)'")
@@ -1648,7 +1669,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func quitAll() {
         if isRunning() {
-            runShell("launchctl unload '\(plistDst)' 2>/dev/null")
+            runShell("launchctl unload '\(plistDst)' 2>/dev/null; pkill -f 'node dist/index.js' 2>/dev/null")
         }
         NSApplication.shared.terminate(nil)
     }
