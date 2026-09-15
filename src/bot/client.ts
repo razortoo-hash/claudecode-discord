@@ -1,3 +1,4 @@
+import { attachGatewayReceipt } from "./gateway-receipt.mjs";
 import {
   Client,
   GatewayIntentBits,
@@ -155,6 +156,8 @@ export async function startBot(): Promise<Client> {
   client.on("shardError", (error, shardId) => {
     console.error(`Shard ${shardId} error:`, error);
   });
+
+  attachGatewayReceipt(client, `${process.cwd()}/.bot-gateway-health.json`);
 
   // Login with retry (network may not be ready on boot)
   await loginWithRetry(client, config.DISCORD_BOT_TOKEN);
